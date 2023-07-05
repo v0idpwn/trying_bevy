@@ -121,16 +121,28 @@ fn spawn_shots_system(
 ) {
     shot_counter.value += 1;
     if shot_counter.value == SHOT_INTERVAL {
-        let enemy_a_handle = asset_server.load("textures/simplespace/shot.png");
+        let shot_handle = asset_server.load("textures/v0idp/shot.png");
         let (_player, player_transform) = query.single_mut();
 
-        let transform: Transform = *player_transform;
+        let transform_a: Transform = player_transform
+            .with_translation(player_transform.translation + Vec3::new(6.0, 20.0, 1.0));
+        let transform_b: Transform = player_transform
+            .with_translation(player_transform.translation + Vec3::new(-6.0, 20.0, 1.0));
 
         commands.spawn((
             Shot,
             SpriteBundle {
-                texture: enemy_a_handle.clone(),
-                transform: transform,
+                texture: shot_handle.clone(),
+                transform: transform_a,
+                ..default()
+            },
+        ));
+
+        commands.spawn((
+            Shot,
+            SpriteBundle {
+                texture: shot_handle.clone(),
+                transform: transform_b,
                 ..default()
             },
         ));
@@ -159,7 +171,7 @@ fn shot_removal_system(mut commands: Commands, mut query: Query<(Entity, &Shot, 
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let ship_handle = asset_server.load("textures/simplespace/ship_C.png");
+    let ship_handle = asset_server.load("textures/v0idp/apu_apustaja_ship.png");
 
     commands.spawn(Camera2dBundle::default());
 
