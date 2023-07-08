@@ -1,12 +1,11 @@
 use bevy::{math::Vec3Swizzles, prelude::*, sprite::collide_aabb::collide};
 
 const TIME_STEP: f32 = 1.0 / 60.0;
-const MAX_X: f32 = 400.0;
-const MAX_Y: f32 = 600.0;
-const BOUNDS: Vec2 = Vec2::new(MAX_X, MAX_Y);
+const BOUNDS: Vec2 = Vec2::new(600.0, 600.0);
 const SHOT_SPEED: f32 = 10.0;
 const SHOT_INTERVAL: u8 = 4; // actual shot interval = (time_step / shot_interval)
 const ENEMY_SPEED: f32 = 200.0;
+const METEOR_SPEED: f32 = 4.0;
 
 fn main() {
     App::new()
@@ -18,14 +17,15 @@ fn main() {
                 snap_to_player_system,
                 maybe_spawn_enemy_system,
                 spawn_shots_system,
-                shot_movement_system,
                 check_for_collisions_system,
-                shot_removal_system,
+                outside_removal_system,
+                apply_movement_vector_system,
             )
                 .in_schedule(CoreSchedule::FixedUpdate),
         )
         .insert_resource(FixedTime::new_from_secs(TIME_STEP))
         .insert_resource(ShotCounter { value: 0 })
+        .insert_resource(Score { value: 0 })
         .add_system(bevy::window::close_on_esc)
         .run();
 }
@@ -35,8 +35,21 @@ struct ShotCounter {
     value: u8,
 }
 
+#[derive(Resource)]
+struct Score {
+    value: u64,
+}
+
 #[derive(Component)]
 struct Shot;
+
+#[derive(Component)]
+struct Enemy;
+
+#[derive(Component)]
+struct SimpleMovement {
+    movement_vector: Vec3,
+}
 
 #[derive(Component)]
 struct Player {
@@ -44,17 +57,20 @@ struct Player {
 }
 
 #[derive(Component)]
-struct RegularEnemy;
+struct MeteorEnemy;
+
+#[derive(Component)]
+struct DrillEnemy;
 
 fn check_for_collisions_system(
     mut commands: Commands,
     player_query: Query<(&Player, &Transform)>,
     shot_query: Query<(Entity, &Shot, &Transform)>,
-    enemies_query: Query<(Entity, &RegularEnemy, &Transform)>,
+    enemies_query: Query<(Entity, &Enemy, &Transform)>,
     focused_windows_query: Query<'_, '_, (Entity, &Window), ()>,
 ) {
     let shot_size_vec = Vec2::new(2., 4.);
-    let enemy_size_vec = Vec2::new(40., 40.);
+    let enemy_size_vec = Vec2::new(64., 64.);
     let player_size_vec = Vec2::new(20., 20.);
     let (_, player_transform) = player_query.single();
 
@@ -93,22 +109,42 @@ fn check_for_collisions_system(
 }
 
 fn maybe_spawn_enemy_system(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let enemy_a_handle = asset_server.load("textures/simplespace/enemy_A.png");
-
     let n = rand::random::<u8>();
-
-    if n > 200 {
-        // spawn at random x, top 10% y
-        let x = (MAX_X / 2.0) - (rand::random::<f32>() * (MAX_X));
-        let y = (MAX_Y - (MAX_Y / 5.0)) + (rand::random::<f32>() * MAX_Y / 5.0);
+    if n > 240 {
+        let drill_handle = asset_server.load("textures/v0idp/drill.png");
+        let x = (BOUNDS.x / 2.0) - (rand::random::<f32>() * (BOUNDS.x));
+        let y = BOUNDS.y;
 
         commands.spawn((
             SpriteBundle {
-                texture: enemy_a_handle.clone(),
+                texture: drill_handle,
+                transform: Transform::from_xyz(x, y, 0.0).with_scale(Vec3::new(2.0, 2.0, 1.0)),
+                ..default()
+            },
+            DrillEnemy,
+            Enemy,
+        ));
+    } else if n > 220 {
+        let meteor_handle = asset_server.load("textures/v0idp/m2.png");
+        let x = (BOUNDS.x / 2.0) - (rand::random::<f32>() * (BOUNDS.x));
+        let y = BOUNDS.y;
+
+        let movement_x = rand::random::<f32>() * METEOR_SPEED;
+        let movement_y = f32::max(0.5, rand::random::<f32>()) * METEOR_SPEED * -1.0;
+
+        let movement_vec = Vec3::new(movement_x, movement_y, 0.0);
+
+        commands.spawn((
+            SpriteBundle {
+                texture: meteor_handle,
                 transform: Transform::from_xyz(x, y, 0.0),
                 ..default()
             },
-            RegularEnemy,
+            SimpleMovement {
+                movement_vector: movement_vec,
+            },
+            MeteorEnemy,
+            Enemy,
         ));
     }
 }
@@ -128,9 +164,13 @@ fn spawn_shots_system(
             .with_translation(player_transform.translation + Vec3::new(6.0, 20.0, 1.0));
         let transform_b: Transform = player_transform
             .with_translation(player_transform.translation + Vec3::new(-6.0, 20.0, 1.0));
+        let movement_vector = Vec3::new(0.0, SHOT_SPEED, 0.0);
 
         commands.spawn((
             Shot,
+            SimpleMovement {
+                movement_vector: movement_vector,
+            },
             SpriteBundle {
                 texture: shot_handle.clone(),
                 transform: transform_a,
@@ -140,6 +180,9 @@ fn spawn_shots_system(
 
         commands.spawn((
             Shot,
+            SimpleMovement {
+                movement_vector: movement_vector,
+            },
             SpriteBundle {
                 texture: shot_handle.clone(),
                 transform: transform_b,
@@ -151,29 +194,35 @@ fn spawn_shots_system(
     }
 }
 
-fn shot_movement_system(mut query: Query<(&Shot, &mut Transform)>) {
-    // TODO: mut vec in place instead of creating new
-    for (_, mut transform) in &mut query {
-        transform.translation = Vec3::new(
-            transform.translation.x,
-            transform.translation.y + SHOT_SPEED,
-            transform.translation.z,
-        )
+fn apply_movement_vector_system(mut query: Query<(&SimpleMovement, &mut Transform)>) {
+    for (simple_movement, mut transform) in &mut query {
+        transform.translation = transform.translation + simple_movement.movement_vector;
     }
 }
 
-fn shot_removal_system(mut commands: Commands, mut query: Query<(Entity, &Shot, &mut Transform)>) {
-    for (shot_entity, _, transform) in &mut query {
-        if transform.translation.y > MAX_Y / 2.0 {
-            commands.entity(shot_entity).despawn();
+fn outside_removal_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &SimpleMovement, &mut Transform)>,
+) {
+    for (entity, _, transform) in &mut query {
+        if transform.translation.y > BOUNDS.y {
+            commands.entity(entity).despawn();
+        } else if transform.translation.x > BOUNDS.x {
+            commands.entity(entity).despawn();
         }
     }
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let ship_handle = asset_server.load("textures/v0idp/apu_apustaja_ship.png");
+    let background_handle = asset_server.load("textures/v0idp/background2.png");
 
     commands.spawn(Camera2dBundle::default());
+
+    commands.spawn(SpriteBundle {
+        texture: background_handle,
+        ..default()
+    });
 
     commands.spawn((
         SpriteBundle {
@@ -222,7 +271,7 @@ fn player_movement_system(
 }
 
 fn snap_to_player_system(
-    mut query: Query<&mut Transform, (With<RegularEnemy>, Without<Player>)>,
+    mut query: Query<&mut Transform, (With<DrillEnemy>, Without<Player>)>,
     player_query: Query<&Transform, With<Player>>,
 ) {
     let player_transform = player_query.single();
