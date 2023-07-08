@@ -7,7 +7,7 @@ const SHOT_INTERVAL: u8 = 4; // actual shot interval = (time_step / shot_interva
 const ENEMY_SPEED: f32 = 200.0;
 const METEOR_SPEED: f32 = 4.0;
 const BG_COLOR_HEX: &'static str = "#222034";
-const BORDER_COLOR_HEX: &'static str = "#FBF236";
+const BORDER_COLOR_HEX: &'static str = "#323044";
 
 fn main() {
     let bg_color = Color::hex(BG_COLOR_HEX).unwrap(); // fuchsia
@@ -23,7 +23,7 @@ fn main() {
                 spawn_shots_system,
                 check_for_collisions_system,
                 apply_movement_vector_system,
-                outside_removal_system,
+                outside_removal_system.after(apply_movement_vector_system),
             )
                 .in_schedule(CoreSchedule::FixedUpdate),
         )
@@ -79,6 +79,8 @@ fn check_for_collisions_system(
     let player_size_vec = Vec2::new(20., 20.);
     let (_, player_transform) = player_query.single();
 
+    let mut removed_entities_set = std::collections::HashSet::new();
+
     for (enemy_entity, _enemy, enemy_transform) in &enemies_query {
         match collide(
             player_transform.translation,
@@ -102,14 +104,16 @@ fn check_for_collisions_system(
                 enemy_size_vec,
             ) {
                 Some(_) => {
-                    // TODO: the entity might not exist when the command is executed,
-                    // due to multiple collisions between same entities
-                    commands.entity(enemy_entity).despawn_recursive();
-                    commands.entity(shot_entity).despawn_recursive();
+                    removed_entities_set.insert(enemy_entity);
+                    removed_entities_set.insert(shot_entity);
                 }
                 None => {}
             }
         }
+    }
+
+    for &removed_entity in &removed_entities_set {
+        commands.entity(removed_entity).despawn_recursive();
     }
 }
 
@@ -209,8 +213,8 @@ fn outside_removal_system(
     mut commands: Commands,
     mut query: Query<(Entity, &SimpleMovement, &mut Transform)>,
 ) {
-    let bx = (BOUNDS.x / 2.0) + 10.0;
-    let by = (BOUNDS.y / 2.0) + 10.0;
+    let bx = (BOUNDS.x / 2.0) + 40.0;
+    let by = (BOUNDS.y / 2.0) + 40.0;
 
     for (entity, _, transform) in &mut query {
         if f32::abs(transform.translation.y) > by {
@@ -219,6 +223,58 @@ fn outside_removal_system(
             commands.entity(entity).despawn_recursive();
         }
     }
+}
+
+fn spawn_borders(commands: &mut Commands) {
+    let x_len = BOUNDS.x + 120.0;
+    let y_len = BOUNDS.y + 120.0;
+    let top_y = BOUNDS.y / 2.0 + 60.0;
+    let bottom_y = -BOUNDS.y / 2.0 - 60.0;
+    let left_x = -BOUNDS.x / 2.0 - 60.0;
+    let right_x = BOUNDS.x / 2.0 + 60.0;
+
+    let border_color = Color::hex(BORDER_COLOR_HEX).unwrap();
+    let border_width = 20.0;
+
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: border_color,
+            custom_size: Some(Vec2::new(border_width, y_len)),
+            ..default()
+        },
+        transform: Transform::from_translation(Vec3::new(left_x, 0.0, 1.)),
+        ..default()
+    });
+
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: border_color,
+            custom_size: Some(Vec2::new(border_width, y_len)),
+            ..default()
+        },
+        transform: Transform::from_translation(Vec3::new(right_x, 0.0, 1.)),
+        ..default()
+    });
+
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: border_color,
+            custom_size: Some(Vec2::new(x_len, border_width)),
+            ..default()
+        },
+        transform: Transform::from_translation(Vec3::new(0.0, top_y, 1.)),
+        ..default()
+    });
+
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: border_color,
+            custom_size: Some(Vec2::new(x_len, border_width)),
+            ..default()
+        },
+        transform: Transform::from_translation(Vec3::new(0.0, bottom_y, 1.)),
+        ..default()
+    });
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -232,18 +288,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     });
 
-    let border_color = Color::hex(BORDER_COLOR_HEX).unwrap();
-    let border_width = 40.0;
-
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: border_color,
-            custom_size: Some(Vec2::new(BOUNDS.x, border_width)),
-            ..default()
-        },
-        transform: Transform::from_translation(Vec3::new(0., 0., 0.)),
-        ..default()
-    });
+    spawn_borders(&mut commands);
 
     commands.spawn((
         SpriteBundle {
