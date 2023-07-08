@@ -6,8 +6,11 @@ const SHOT_SPEED: f32 = 10.0;
 const SHOT_INTERVAL: u8 = 4; // actual shot interval = (time_step / shot_interval)
 const ENEMY_SPEED: f32 = 200.0;
 const METEOR_SPEED: f32 = 4.0;
+const BG_COLOR_HEX: &'static str = "#222034";
 
 fn main() {
+    let bg_color = Color::hex(BG_COLOR_HEX).unwrap(); // fuchsia
+
     App::new()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
@@ -23,6 +26,7 @@ fn main() {
             )
                 .in_schedule(CoreSchedule::FixedUpdate),
         )
+        .insert_resource(ClearColor(bg_color))
         .insert_resource(FixedTime::new_from_secs(TIME_STEP))
         .insert_resource(ShotCounter { value: 0 })
         .insert_resource(Score { value: 0 })
