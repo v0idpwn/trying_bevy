@@ -7,6 +7,7 @@ const SHOT_INTERVAL: u8 = 4; // actual shot interval = (time_step / shot_interva
 const ENEMY_SPEED: f32 = 200.0;
 const METEOR_SPEED: f32 = 4.0;
 const BG_COLOR_HEX: &'static str = "#222034";
+const BORDER_COLOR_HEX: &'static str = "#FBF236";
 
 fn main() {
     let bg_color = Color::hex(BG_COLOR_HEX).unwrap(); // fuchsia
@@ -103,8 +104,8 @@ fn check_for_collisions_system(
                 Some(_) => {
                     // TODO: the entity might not exist when the command is executed,
                     // due to multiple collisions between same entities
-                    commands.entity(enemy_entity).despawn();
-                    commands.entity(shot_entity).despawn();
+                    commands.entity(enemy_entity).despawn_recursive();
+                    commands.entity(shot_entity).despawn_recursive();
                 }
                 None => {}
             }
@@ -130,7 +131,7 @@ fn maybe_spawn_enemy_system(mut commands: Commands, asset_server: Res<AssetServe
         ));
     } else if n > 220 {
         let meteor_handle = asset_server.load("textures/v0idp/m2.png");
-        let x = 0.0;
+        let x = (rand::random::<f32>() * BOUNDS.x) - (BOUNDS.x * 0.5);
         let y = BOUNDS.y / 2.0;
 
         let movement_x = (rand::random::<f32>() - 0.5) * METEOR_SPEED;
@@ -213,9 +214,9 @@ fn outside_removal_system(
 
     for (entity, _, transform) in &mut query {
         if f32::abs(transform.translation.y) > by {
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive();
         } else if f32::abs(transform.translation.x) > bx {
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive();
         }
     }
 }
@@ -228,6 +229,19 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn(SpriteBundle {
         texture: background_handle,
+        ..default()
+    });
+
+    let border_color = Color::hex(BORDER_COLOR_HEX).unwrap();
+    let border_width = 40.0;
+
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: border_color,
+            custom_size: Some(Vec2::new(BOUNDS.x, border_width)),
+            ..default()
+        },
+        transform: Transform::from_translation(Vec3::new(0., 0., 0.)),
         ..default()
     });
 
@@ -251,19 +265,19 @@ fn player_movement_system(
     let mut movement_factor_x = 0.0;
     let mut movement_factor_y = 0.0;
 
-    if keyboard_input.pressed(KeyCode::Left) {
+    if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
         movement_factor_x -= ship.movement_speed;
     }
 
-    if keyboard_input.pressed(KeyCode::Right) {
+    if keyboard_input.pressed(KeyCode::Right) || keyboard_input.pressed(KeyCode::D) {
         movement_factor_x += ship.movement_speed;
     }
 
-    if keyboard_input.pressed(KeyCode::Up) {
+    if keyboard_input.pressed(KeyCode::Up) || keyboard_input.pressed(KeyCode::W) {
         movement_factor_y += ship.movement_speed;
     }
 
-    if keyboard_input.pressed(KeyCode::Down) {
+    if keyboard_input.pressed(KeyCode::Down) || keyboard_input.pressed(KeyCode::S) {
         movement_factor_y -= ship.movement_speed;
     }
 
