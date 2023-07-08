@@ -18,8 +18,8 @@ fn main() {
                 maybe_spawn_enemy_system,
                 spawn_shots_system,
                 check_for_collisions_system,
-                outside_removal_system,
                 apply_movement_vector_system,
+                outside_removal_system,
             )
                 .in_schedule(CoreSchedule::FixedUpdate),
         )
@@ -126,10 +126,10 @@ fn maybe_spawn_enemy_system(mut commands: Commands, asset_server: Res<AssetServe
         ));
     } else if n > 220 {
         let meteor_handle = asset_server.load("textures/v0idp/m2.png");
-        let x = (BOUNDS.x / 2.0) - (rand::random::<f32>() * (BOUNDS.x));
-        let y = BOUNDS.y;
+        let x = 0.0;
+        let y = BOUNDS.y / 2.0;
 
-        let movement_x = rand::random::<f32>() * METEOR_SPEED;
+        let movement_x = (rand::random::<f32>() - 0.5) * METEOR_SPEED;
         let movement_y = f32::max(0.5, rand::random::<f32>()) * METEOR_SPEED * -1.0;
 
         let movement_vec = Vec3::new(movement_x, movement_y, 0.0);
@@ -204,10 +204,13 @@ fn outside_removal_system(
     mut commands: Commands,
     mut query: Query<(Entity, &SimpleMovement, &mut Transform)>,
 ) {
+    let bx = (BOUNDS.x / 2.0) + 10.0;
+    let by = (BOUNDS.y / 2.0) + 10.0;
+
     for (entity, _, transform) in &mut query {
-        if transform.translation.y > BOUNDS.y {
+        if f32::abs(transform.translation.y) > by {
             commands.entity(entity).despawn();
-        } else if transform.translation.x > BOUNDS.x {
+        } else if f32::abs(transform.translation.x) > bx {
             commands.entity(entity).despawn();
         }
     }
