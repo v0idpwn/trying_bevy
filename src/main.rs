@@ -137,7 +137,7 @@ fn maybe_spawn_enemy_system(mut commands: Commands, asset_server: Res<AssetServe
         commands.spawn((
             SpriteBundle {
                 texture: drill_handle,
-                transform: Transform::from_xyz(x, y, 0.0).with_scale(Vec3::new(2.0, 2.0, 1.0)),
+                transform: Transform::from_xyz(x, y, 0.0).with_scale(Vec3::new(2.0, 2.0, 2.0)),
                 ..default()
             },
             DrillEnemy,
@@ -156,7 +156,7 @@ fn maybe_spawn_enemy_system(mut commands: Commands, asset_server: Res<AssetServe
         commands.spawn((
             SpriteBundle {
                 texture: meteor_handle,
-                transform: Transform::from_xyz(x, y, 0.0),
+                transform: Transform::from_xyz(x, y, 2.0),
                 ..default()
             },
             SimpleMovement {
@@ -298,6 +298,7 @@ fn setup(
 
     commands.spawn(SpriteBundle {
         texture: background_handle,
+        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
         ..default()
     });
 
@@ -313,7 +314,7 @@ fn setup(
         SpriteSheetBundle {
             texture_atlas: texture_atlas_handle,
             sprite: TextureAtlasSprite::new(animation_indices.first),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 50.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
             ..default()
         },
         animation_indices,
@@ -355,7 +356,7 @@ fn player_movement_system(
     transform.translation = Vec3::new(
         transform.translation.x + movement_factor_x,
         transform.translation.y + movement_factor_y,
-        transform.translation.z,
+        2.0,
     )
 }
 
@@ -380,6 +381,7 @@ fn snap_to_player_system(
         enemy_transform.translation += translation_delta;
         let extents = Vec3::from((BOUNDS / 2.0, 0.0));
         enemy_transform.translation = enemy_transform.translation.min(extents).max(-extents);
+        enemy_transform.translation.z = 2.0;
     }
 }
 
