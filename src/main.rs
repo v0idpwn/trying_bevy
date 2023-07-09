@@ -27,6 +27,7 @@ fn main() {
             )
                 .in_schedule(CoreSchedule::FixedUpdate),
         )
+        .add_system(animate_sprite_system)
         .insert_resource(ClearColor(bg_color))
         .insert_resource(FixedTime::new_from_secs(TIME_STEP))
         .insert_resource(ShotCounter { value: 0 })
@@ -34,6 +35,15 @@ fn main() {
         .add_system(bevy::window::close_on_esc)
         .run();
 }
+
+#[derive(Component)]
+struct AnimationIndices {
+    first: usize,
+    last: usize,
+}
+
+#[derive(Component, Deref, DerefMut)]
+struct AnimationTimer(Timer);
 
 #[derive(Resource)]
 struct ShotCounter {
@@ -277,8 +287,11 @@ fn spawn_borders(commands: &mut Commands) {
     });
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let ship_handle = asset_server.load("textures/v0idp/apu_apustaja_ship.png");
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+) {
     let background_handle = asset_server.load("textures/v0idp/background2.png");
 
     commands.spawn(Camera2dBundle::default());
@@ -290,11 +303,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     spawn_borders(&mut commands);
 
+    let texture_handle = asset_server.load("textures/v0idp/a2.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 8, 1, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    let animation_indices = AnimationIndices { first: 0, last: 7 };
+
     commands.spawn((
-        SpriteBundle {
-            texture: ship_handle,
+        SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle,
+            sprite: TextureAtlasSprite::new(animation_indices.first),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 50.0)),
             ..default()
         },
+        animation_indices,
+        AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
         Player {
             movement_speed: 10.0,
         },
@@ -357,5 +380,25 @@ fn snap_to_player_system(
         enemy_transform.translation += translation_delta;
         let extents = Vec3::from((BOUNDS / 2.0, 0.0));
         enemy_transform.translation = enemy_transform.translation.min(extents).max(-extents);
+    }
+}
+
+fn animate_sprite_system(
+    time: Res<Time>,
+    mut query: Query<(
+        &AnimationIndices,
+        &mut AnimationTimer,
+        &mut TextureAtlasSprite,
+    )>,
+) {
+    for (indices, mut timer, mut sprite) in &mut query {
+        timer.tick(time.delta());
+        if timer.just_finished() {
+            sprite.index = if sprite.index == indices.last {
+                indices.first
+            } else {
+                sprite.index + 1
+            };
+        }
     }
 }
